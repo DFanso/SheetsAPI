@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { google } = require('googleapis');
 const { format } = require("date-fns");
+const { utcToZonedTime, zonedTimeToUtc } = require('date-fns-tz');
 
 const app = express();
 app.use(cors());
@@ -21,12 +22,12 @@ app.post('/update-google-sheet', async (req, res) => {
   const inputData = req.body;
   //console.log(req.body)
 
-
-
-const currentDate = new Date();
-
-const formattedDate = format(currentDate, "MMMM dd, yyyy");
-const formattedTime = format(currentDate, "HH:mm:ss");
+  const saoPauloTimeZone = 'America/Sao_Paulo';
+  const currentDate = new Date();
+  const saoPauloDate = utcToZonedTime(currentDate, saoPauloTimeZone);
+  
+  const formattedDate = format(saoPauloDate, "MMMM dd, yyyy");
+  const formattedTime = format(saoPauloDate, "HH:mm:ss");
 
 console.log(formattedDate,formattedTime)
 
