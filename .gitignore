@@ -128,3 +128,4 @@ dist
 .yarn/install-state.gz
 .pnp.*
 pesquisa-doutorado-98136-ee201f423535.json
+.DS_Store

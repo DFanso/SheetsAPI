@@ -8,6 +8,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+
 // Load the service account credentials JSON file
 const credentials = require('./pesquisa-doutorado-98136-ee201f423535.json');
 
