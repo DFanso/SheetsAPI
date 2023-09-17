@@ -3,6 +3,7 @@ const cors = require('cors');
 const { google } = require('googleapis');
 const { format } = require("date-fns");
 const { utcToZonedTime, zonedTimeToUtc } = require('date-fns-tz');
+const fs = require('fs').promises;
 
 const app = express();
 app.use(cors());
@@ -20,85 +21,73 @@ const auth = new google.auth.GoogleAuth({
 
 app.post('/update-google-sheet', async (req, res) => {
     const inputData = req.body;
-
-    const saoPauloTimeZone = 'America/Sao_Paulo';
-    const currentDate = new Date();
-    const saoPauloDate = utcToZonedTime(currentDate, saoPauloTimeZone);
-  
-    const formattedDate = format(saoPauloDate, "MMMM dd, yyyy");
-    const formattedTime = format(saoPauloDate, "HH:mm:ss");
-
-    // Convert inputData into a 2D array, but this time vertically
-const values = [];
-
-// Helper function to add data vertically
-const addDataVertically = (data, maxLength) => {
-    for (let i = 0; i < maxLength; i++) {
-        // Check if data[i] exists or if it's a 0/false value; otherwise use placeholder
-        const value = (data[i] !== undefined || data[i] === 0 || data[i] === false) ? data[i] : "ㅤ";
-        
-        if (values[i]) {
-            values[i].push(value);
-        } else {
-            values[i] = [value];
-        }
-    }
-};
-
-// Find the maximum length of all forms data
-const maxLength = Math.max(
-    1 + Object.values(inputData.formDemografico).length,
-    1 + (inputData.formQuest1Fem ? inputData.formQuest1Fem.length : 0),
-    1 + (inputData.formQuest2Fem ? inputData.formQuest2Fem.length : 0),
-    1 + (inputData.formQuest3Fem ? inputData.formQuest3Fem.length : 0),
-    1 + (inputData.formQuest1Mas ? inputData.formQuest1Mas.length : 0),
-    1 + (inputData.formQuest2Mas ? inputData.formQuest2Mas.length : 0),
-    1 + (inputData.formQuest3Mas ? inputData.formQuest3Mas.length : 0),
-    1 + (inputData.formSatisfacao ? inputData.formSatisfacao.length : 0),
-    1 + (inputData.formSignificado ? inputData.formSignificado.length : 0),
-    1 + (inputData.tracos ? inputData.tracos.length : 0)
-);
-
-addDataVertically([`${formattedDate},${formattedTime}`], maxLength);
-addDataVertically(["𝐃𝐞𝐦𝐨𝐠𝐫𝐚𝐟𝐢𝐜𝐨", ...Object.values(inputData.formDemografico)], maxLength);
-
-// Convert other form data into arrays and push them into values array vertically
-const forms = [
-    { data: inputData.formQuest1Fem, label: "𝐐𝐮𝐞𝐬𝐭𝟏 𝐅𝐞𝐦" },
-    { data: inputData.formQuest2Fem, label: "𝐐𝐮𝐞𝐬𝐭𝟐 𝐅𝐞𝐦" },
-    { data: inputData.formQuest3Fem, label: "𝐐𝐮𝐞𝐬𝐭𝟑 𝐅𝐞𝐦" },
-    { data: inputData.formQuest1Mas, label: "𝐐𝐮𝐞𝐬𝐭𝟏 𝐌𝐚𝐬" },
-    { data: inputData.formQuest2Mas, label: "𝐐𝐮𝐞𝐬𝐭𝟐 𝐌𝐚𝐬" },
-    { data: inputData.formQuest3Mas, label: "𝐐𝐮𝐞𝐬𝐭𝟑 𝐌𝐚𝐬" },
-    { data: inputData.formSatisfacao, label: "𝐒𝐚𝐭𝐢𝐬𝐟𝐚𝐜𝐚𝐨" },
-    { data: inputData.formSignificado, label: "𝐒𝐢𝐠𝐧𝐢𝐟𝐢𝐜𝐚𝐝𝐨" },
-    { data: inputData.tracos, label: "𝐓𝐫𝐚𝐜𝐨𝐬" }
-];
-
-
-forms.forEach(form => {
-    if (form.data) {
-        addDataVertically([form.label, ...form.data], maxLength);
-    } else {
-        addDataVertically([form.label], maxLength); // Only label will be added if data doesn't exist
-    }
-});
-
-    // Spacing
-    for (let i = 0; i < 3; i++) {
-        addDataVertically(["ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ", "ㅤ"]);
-    }
-
     // Initialize the Google Sheets API
     const sheets = google.sheets({ version: 'v4', auth });
+
+    let lastPersonNumber = 0;
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: '1VC73YIaqhOhAjQ8k-EgkSS9GgcbFGKKPjjwv3jWk3eE',
+            range: 'Z1',
+        });
+        
+        const cellValue = response.data.values ? response.data.values[0][0] : "Person0";
+        lastPersonNumber = parseInt(cellValue.replace('Person', ''));
+
+        // Check for NaN and reset to 0 if needed
+        if (isNaN(lastPersonNumber)) {
+            lastPersonNumber = 0;
+        }
+    } catch (error) {
+        console.log('Could not read last person number, defaulting to 0');
+    }
+
+    // Increment the "Person" identifier
+    const newPerson = `Person${lastPersonNumber + 1}`;
+
+    // Update the last "Person" identifier in the reserved cell (Z1)
+    await sheets.spreadsheets.values.update({
+        spreadsheetId: '1VC73YIaqhOhAjQ8k-EgkSS9GgcbFGKKPjjwv3jWk3eE',
+        range: 'Z1',
+        valueInputOption: 'RAW',
+        resource: { values: [[newPerson]] },
+    });
+
+    // Convert inputData into a single array (horizontal)
+    const values = [newPerson];
+   
+
+    // Add demographic form data
+    values.push(...Object.values(inputData.formDemografico));
+
+    // Add other form data
+    const forms = [
+        { data: inputData.formQuest1Fem, label: 'formQuest1Fem' },
+        { data: inputData.formQuest2Fem, label: 'formQuest2Fem' },
+        { data: inputData.formQuest3Fem, label: 'formQuest3Fem' },
+        { data: inputData.formQuest1Mas, label: 'formQuest1Mas' },
+        { data: inputData.formQuest2Mas, label: 'formQuest2Mas' },
+        { data: inputData.formQuest3Mas, label: 'formQuest3Mas' },
+        { data: inputData.formSatisfacao, label: 'formSatisfacao' },
+        { data: inputData.formSignificado, label: 'formSignificado' },
+        { data: inputData.tracos, label: 'tracos' }
+    ];
+    
+    forms.forEach(form => {
+        if (form.data && form.data.length > 0) {  // Check if data exists and is not empty
+            values.push(...form.data);
+        }
+    });
+
+    
 
     // Update the Google Sheet
     try {
         await sheets.spreadsheets.values.append({
             spreadsheetId: '1VC73YIaqhOhAjQ8k-EgkSS9GgcbFGKKPjjwv3jWk3eE',
-            range: 'A1', // Specify the sheet name
+            range: 'A1', // Specify the sheet name and starting cell
             valueInputOption: 'RAW',
-            resource: { values },
+            resource: { values: [values] }, // Wrap in another array to make it a 2D array
         });
         res.status(200).json({ message: 'Data updated in Google Sheet.' });
     } catch (error) {
@@ -106,6 +95,7 @@ forms.forEach(form => {
         res.status(500).json({ error: 'An error occurred while updating Google Sheet.' });
     }
 });
+
 
 
 const PORT = process.env.PORT || 3001;
