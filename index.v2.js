@@ -11,7 +11,7 @@ app.use(express.json());
 
 
 // Load the service account credentials JSON file
-const credentials = require('./pesquisa-doutorado-98136-ee201f423535.json');
+const credentials = require('./pesquisasaude-46d86553f36f.json');
 
 // Authorize using the service account credentials
 const auth = new google.auth.GoogleAuth({
@@ -20,6 +20,7 @@ const auth = new google.auth.GoogleAuth({
 });
 
 app.post('/update-google-sheet', async (req, res) => {
+    console.log(req.body)
     const inputData = req.body;
     // Initialize the Google Sheets API
     const sheets = google.sheets({ version: 'v4', auth });
